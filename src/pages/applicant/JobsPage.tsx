@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import { CurrencyConverter } from '../../components/CurrencyConverter'
-import { MapPin, Clock, Briefcase, Search, Filter } from 'lucide-react'
+import { MapPin, Clock, Briefcase, Search, Filter, Building2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -27,9 +28,10 @@ interface Job {
 }
 
 export function JobsPage() {
-  // const { profile } = useAuth()
+  const { user } = useAuth()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
   const [jobTypeFilter, setJobTypeFilter] = useState('')
@@ -43,11 +45,14 @@ export function JobsPage() {
 
   const loadJobs = async () => {
     try {
+      setLoading(true)
+      setError(null)
+
       const { data, error } = await supabase
         .from('jobs')
         .select(`
           *,
-          profiles!jobs_employer_id_fkey (
+          employer:profiles!jobs_employer_id_fkey (
             company_name
           )
         `)
@@ -59,13 +64,14 @@ export function JobsPage() {
       const jobsWithEmployer = data.map(job => ({
         ...job,
         employer: {
-          company_name: job.profiles?.company_name || 'Empresa no especificada'
+          company_name: job.employer?.company_name || 'Empresa no especificada'
         }
       }))
 
       setJobs(jobsWithEmployer)
     } catch (error: any) {
       console.error('Error loading jobs:', error)
+      setError('No se pudieron cargar los empleos. Por favor, verifica tu conexión e intenta de nuevo.')
       toast.error('Error al cargar empleos')
     } finally {
       setLoading(false)
@@ -82,11 +88,17 @@ export function JobsPage() {
     
     const matchesJobType = !jobTypeFilter || job.job_type === jobTypeFilter
 
-    const matchesExperience = !experienceLevelFilter || job.experience_level === experienceLevelFilter
+    const matchesExperienceLevel = !experienceLevelFilter || 
+                                 job.experience_level === experienceLevelFilter
 
-    const matchesRemote = remoteWorkFilter === '' || job.remote_work === remoteWorkFilter
+    const matchesRemoteWork = remoteWorkFilter === '' || 
+                             job.remote_work === remoteWorkFilter
 
-    return matchesSearch && matchesLocation && matchesJobType && matchesExperience && matchesRemote
+    return matchesSearch && 
+           matchesLocation && 
+           matchesJobType && 
+           matchesExperienceLevel && 
+           matchesRemoteWork
   })
 
   const getJobTypeLabel = (type: string) => {
@@ -99,14 +111,43 @@ export function JobsPage() {
     return types[type] || type
   }
 
+  const getExperienceLevelLabel = (level: string) => {
+    const levels: { [key: string]: string } = {
+      'entry': 'Principiante',
+      'mid': 'Intermedio',
+      'senior': 'Senior',
+      'lead': 'Líder'
+    }
+    return levels[level] || level
+  }
+
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="animate-pulse space-y-4">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-white p-6 rounded-lg shadow h-48"></div>
-          ))}
+          <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow h-48"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">{error}</h2>
+          <button
+            onClick={() => loadJobs()}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Intentar de nuevo
+          </button>
         </div>
       </div>
     )
@@ -246,10 +287,7 @@ export function JobsPage() {
                 {job.experience_level && (
                   <div className="text-gray-500">
                     <span className="px-2 py-1 bg-gray-100 rounded-full text-sm">
-                      {job.experience_level === 'entry' && 'Principiante'}
-                      {job.experience_level === 'mid' && 'Intermedio'}
-                      {job.experience_level === 'senior' && 'Senior'}
-                      {job.experience_level === 'lead' && 'Líder'}
+                      {getExperienceLevelLabel(job.experience_level)}
                     </span>
                   </div>
                 )}
