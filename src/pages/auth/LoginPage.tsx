@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,8 +17,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
-  const { signIn } = useAuth()
+  const { signIn, error: authError, clearError } = useAuth()
 
   const {
     register,
@@ -28,13 +27,23 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
   })
 
+  // Limpiar errores de autenticación cuando el componente se desmonta
+  useEffect(() => {
+    return () => {
+      clearError()
+    }
+  }, [clearError])
+
   const onSubmit = async (data: LoginFormData) => {
+    if (loading) return // Evitar múltiples envíos
+
     setLoading(true)
     try {
       await signIn(data.email, data.password)
+      // No necesitamos navegar aquí, AuthContext se encargará de la redirección
       toast.success('¡Bienvenido de vuelta!')
-      navigate('/dashboard', { replace: true })
     } catch (error: any) {
+      console.error('Error en login:', error)
       toast.error(error.message || 'Error al iniciar sesión')
     } finally {
       setLoading(false)
@@ -60,6 +69,12 @@ export function LoginPage() {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+          {authError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+              <span className="block sm:inline">{authError}</span>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -109,10 +124,15 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                loading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               {loading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Iniciando sesión...
+                </div>
               ) : (
                 'Iniciar Sesión'
               )}

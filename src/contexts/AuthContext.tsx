@@ -64,92 +64,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = () => setError(null)
 
+  // Función para cargar el perfil del usuario
   const loadUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
 
-      if (error) {
-        throw error
+      if (profileError) {
+        throw profileError
       }
-      
+
       if (!data) {
         throw new Error('No se encontró el perfil del usuario')
       }
-      
-      setProfile(data)
 
-      // Redirigir basado en el tipo de usuario
-      if (data.user_type === 'employer') {
-        navigate('/dashboard', { replace: true })
-      } else {
-        navigate('/jobs', { replace: true })
+      setProfile(data)
+      setIsAuthenticated(true)
+
+      // Redirigir solo si estamos en la página de login o registro
+      const currentPath = window.location.pathname
+      if (currentPath === '/login' || currentPath === '/register') {
+        if (data.user_type === 'employer') {
+          navigate('/dashboard', { replace: true })
+        } else {
+          navigate('/jobs', { replace: true })
+        }
       }
     } catch (error: any) {
       console.error('Error al cargar el perfil:', error)
       setError(error.message || 'Error al cargar el perfil del usuario')
       if (error.status === 401 || error.status === 403) {
-        await supabaseSignOut()
-        setUser(null)
-        setProfile(null)
-        setIsAuthenticated(false)
-        navigate('/login', { replace: true })
+        await handleSignOut()
       }
-    } finally {
-      setLoading(false)
     }
   }
 
+  // Función para manejar el cierre de sesión
+  const handleSignOut = async () => {
+    try {
+      await supabaseSignOut()
+      setUser(null)
+      setProfile(null)
+      setIsAuthenticated(false)
+      navigate('/login', { replace: true })
+    } catch (error: any) {
+      console.error('Error al cerrar sesión:', error)
+      setError(error.message || 'Error al cerrar sesión')
+    }
+  }
+
+  // Efecto para escuchar cambios en la autenticación
   useEffect(() => {
-    const initialSession = async () => {
+    const initAuth = async () => {
       try {
         setLoading(true)
-        clearError()
+        const session = await getCurrentUser()
         
-        const currentUser = await getCurrentUser()
-        setUser(currentUser)
-        setIsAuthenticated(!!currentUser)
-        
-        if (currentUser) {
-          await loadUserProfile(currentUser.id)
+        if (session) {
+          setUser(session)
+          await loadUserProfile(session.id)
+        } else {
+          setUser(null)
+          setProfile(null)
+          setIsAuthenticated(false)
         }
       } catch (error: any) {
-        console.error('Error al verificar la sesión:', error)
-        setError(error.message || 'Error al verificar la sesión')
-        setUser(null)
-        setProfile(null)
-        setIsAuthenticated(false)
+        console.error('Error al inicializar la autenticación:', error)
+        setError(error.message || 'Error al cargar la sesión')
       } finally {
         setLoading(false)
       }
     }
 
-    initialSession()
+    initAuth()
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        try {
-          clearError()
-          const currentUser = session?.user ?? null
-          setUser(currentUser)
-          setIsAuthenticated(!!currentUser)
-          
-          if (currentUser) {
-            await loadUserProfile(currentUser.id)
-          } else {
-            setProfile(null)
-            navigate('/login', { replace: true })
-          }
-        } catch (error: any) {
-          console.error('Error en el cambio de estado de autenticación:', error)
-          setError(error.message || 'Error en la autenticación')
-          navigate('/login', { replace: true })
-        }
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setUser(session.user)
+        await loadUserProfile(session.user.id)
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setProfile(null)
+        setIsAuthenticated(false)
       }
-    )
+    })
 
     return () => {
       authListener?.subscription.unsubscribe()
