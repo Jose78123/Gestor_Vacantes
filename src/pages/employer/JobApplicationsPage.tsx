@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -50,6 +50,8 @@ export function JobApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedStatus, setSelectedStatus] = useState('all')
+  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
+  const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
     if (jobId) {
@@ -109,16 +111,19 @@ export function JobApplicationsPage() {
 
       setApplications(applicationsWithApplicant)
     } catch (error: any) {
-      console.error('Error loading job applications:', error)
-      toast.error('Error al cargar postulaciones')
-      navigate('/dashboard')
+      console.error('Error loading job and applications:', error)
+      toast.error('Error al cargar las postulaciones')
+      navigate('/employer/dashboard')
     } finally {
       setLoading(false)
     }
   }
 
-  const updateApplicationStatus = async (applicationId: string, newStatus: 'accepted' | 'rejected') => {
+  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status']) => {
+    if (updating) return
+
     try {
+      setUpdating(true)
       const { error } = await supabase
         .from('applications')
         .update({ status: newStatus })
@@ -126,353 +131,338 @@ export function JobApplicationsPage() {
 
       if (error) throw error
 
-      setApplications(applications.map(app =>
-        app.id === applicationId
-          ? { ...app, status: newStatus }
-          : app
-      ))
+      // Update local state
+      setApplications(apps =>
+        apps.map(app =>
+          app.id === applicationId ? { ...app, status: newStatus } : app
+        )
+      )
 
-      toast.success(`Postulación ${newStatus === 'accepted' ? 'aceptada' : 'rechazada'} exitosamente`)
+      toast.success(
+        newStatus === 'accepted'
+          ? 'Candidato aceptado exitosamente'
+          : 'Candidato rechazado exitosamente'
+      )
     } catch (error: any) {
-      toast.error('Error al actualizar estado de la postulación')
+      console.error('Error updating application:', error)
+      toast.error('Error al actualizar el estado de la postulación')
+    } finally {
+      setUpdating(false)
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="h-5 w-5 text-yellow-500" />
-      case 'accepted':
-        return <Check className="h-5 w-5 text-green-500" />
-      case 'rejected':
-        return <X className="h-5 w-5 text-red-500" />
-      default:
-        return <Clock className="h-5 w-5 text-gray-400" />
-    }
+  const toggleApplicantDetails = (applicationId: string) => {
+    setExpandedApplicationId(
+      expandedApplicationId === applicationId ? null : applicationId
+    )
   }
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Pendiente'
-      case 'accepted':
-        return 'Aceptado'
-      case 'rejected':
-        return 'Rechazado'
-      default:
-        return status
-    }
-  }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'accepted':
-        return 'bg-green-100 text-green-800'
-      case 'rejected':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
 
-  const filteredApplications = applications.filter(app => {
-    if (selectedStatus === 'all') return true
-    return app.status === selectedStatus
-  })
 
   const stats = {
     total: applications.length,
     pending: applications.filter(app => app.status === 'pending').length,
     accepted: applications.filter(app => app.status === 'accepted').length,
-    rejected: applications.filter(app => app.status === 'rejected').length,
+    rejected: applications.filter(app => app.status === 'rejected').length
   }
+
+  const filteredApplications = applications.filter(app => 
+    selectedStatus === 'all' || app.status === selectedStatus
+  )
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white p-6 rounded-lg shadow h-32"></div>
+          <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+          <div className="grid grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
             ))}
           </div>
+          <div className="h-64 bg-gray-200 rounded"></div>
         </div>
       </div>
     )
   }
 
   if (!job) {
-    return (
-      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Empleo no encontrado</h2>
-        </div>
-      </div>
-    )
+    navigate('/employer/dashboard')
+    return null
   }
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <button
-        onClick={() => navigate('/dashboard')}
-        className="flex items-center text-blue-600 hover:text-blue-800 mb-6 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver al Dashboard
-      </button>
-
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Postulaciones para: {job.title}
-        </h1>
-        <div className="flex items-center text-gray-600">
-          <MapPin className="h-4 w-4 mr-1" />
-          {job.location}
-        </div>
-      </div>
-
-      {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <User className="h-8 w-8 text-blue-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
-            </div>
-          </div>
-        </div>
+        <button
+          onClick={() => navigate('/employer/dashboard')}
+          className="flex items-center text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Volver al panel
+        </button>
         
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <Clock className="h-8 w-8 text-yellow-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pendientes</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.pending}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <Check className="h-8 w-8 text-green-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Aceptadas</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.accepted}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <X className="h-8 w-8 text-red-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Rechazadas</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.rejected}</p>
-            </div>
+        <div className="mt-4">
+          <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
+          <div className="flex items-center mt-2 text-gray-500">
+            <MapPin className="h-5 w-5 mr-2" />
+            {job.location}
           </div>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setSelectedStatus('all')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedStatus === 'all'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:text-blue-600'
-            }`}
-          >
-            Todas ({stats.total})
-          </button>
-          <button
-            onClick={() => setSelectedStatus('pending')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedStatus === 'pending'
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'text-gray-600 hover:text-yellow-600'
-            }`}
-          >
-            Pendientes ({stats.pending})
-          </button>
-          <button
-            onClick={() => setSelectedStatus('accepted')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedStatus === 'accepted'
-                ? 'bg-green-100 text-green-700'
-                : 'text-gray-600 hover:text-green-600'
-            }`}
-          >
-            Aceptadas ({stats.accepted})
-          </button>
-          <button
-            onClick={() => setSelectedStatus('rejected')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedStatus === 'rejected'
-                ? 'bg-red-100 text-red-700'
-                : 'text-gray-600 hover:text-red-600'
-            }`}
-          >
-            Rechazadas ({stats.rejected})
-          </button>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <FileText className="h-6 w-6 text-gray-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total Postulaciones</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.total}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Clock className="h-6 w-6 text-yellow-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Pendientes</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.pending}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Check className="h-6 w-6 text-green-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Aceptadas</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.accepted}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <X className="h-6 w-6 text-red-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Rechazadas</dt>
+                  <dd className="text-lg font-medium text-gray-900">{stats.rejected}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Lista de postulaciones */}
-      {filteredApplications.length === 0 ? (
-        <div className="text-center py-12">
-          <User className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">
-            {selectedStatus === 'all' 
-              ? 'No hay postulaciones aún'
-              : `No hay postulaciones ${getStatusLabel(selectedStatus).toLowerCase()}`
-            }
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {selectedStatus === 'all' 
-              ? 'Los candidatos comenzarán a postularse pronto.'
-              : 'Prueba cambiando el filtro para ver otras postulaciones.'
-            }
-          </p>
+      <div className="bg-white shadow rounded-lg">
+        <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">
+              Postulaciones ({filteredApplications.length})
+            </h3>
+            <div className="mt-3 sm:mt-0">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="pending">Pendientes</option>
+                <option value="accepted">Aceptadas</option>
+                <option value="rejected">Rechazadas</option>
+              </select>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-6">
-          {filteredApplications.map((application) => (
-            <div
-              key={application.id}
-              className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
-            >
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        {application.applicant.full_name}
-                      </h3>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(application.status)}`}>
-                        {getStatusIcon(application.status)}
-                        <span className="ml-2">{getStatusLabel(application.status)}</span>
-                      </span>
-                    </div>
+        
+        {/* Lista de postulaciones */}
+        <div className="divide-y divide-gray-200">
+          {/* Applications list header */}
+          <div className="hidden sm:grid sm:grid-cols-12 gap-4 px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <div className="col-span-3">Candidato</div>
+            <div className="col-span-2">Ubicación</div>
+            <div className="col-span-2">Fecha</div>
+            <div className="col-span-2">Estado</div>
+            <div className="col-span-3">Acciones</div>
+          </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="flex items-center text-gray-600">
-                        <Mail className="h-4 w-4 mr-2" />
-                        <a 
-                          href={`mailto:${application.applicant.email}`}
-                          className="hover:text-blue-600 transition-colors"
-                        >
-                          {application.applicant.email}
-                        </a>
-                      </div>
-                      
-                      {application.applicant.phone && (
-                        <div className="flex items-center text-gray-600">
-                          <Phone className="h-4 w-4 mr-2" />
-                          <a 
-                            href={`tel:${application.applicant.phone}`}
-                            className="hover:text-blue-600 transition-colors"
-                          >
-                            {application.applicant.phone}
+          {filteredApplications.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <p className="text-gray-500 text-lg">No hay postulaciones que coincidan con los filtros seleccionados.</p>
+            </div>
+          ) : (
+            filteredApplications.map((application) => (
+              <div key={application.id} className="px-6 py-6">
+                <div className="sm:grid sm:grid-cols-12 sm:gap-4">
+                  {/* Candidate info */}
+                  <div className="col-span-3 mb-4 sm:mb-0">
+                    <div className="flex items-center">
+                      <User className="h-10 w-10 text-gray-400 bg-gray-100 rounded-full p-2" />
+                      <div className="ml-4">
+                        <div className="font-medium text-gray-900">{application.applicant.full_name}</div>
+                        <div className="text-gray-500 text-sm truncate">
+                          <a href={`mailto:${application.applicant.email}`} className="hover:text-blue-600">
+                            {application.applicant.email}
                           </a>
                         </div>
-                      )}
-                      
-                      {application.applicant.location && (
-                        <div className="flex items-center text-gray-600">
-                          <MapPin className="h-4 w-4 mr-2" />
-                          {application.applicant.location}
-                        </div>
-                      )}
-                    </div>
-
-                    {application.applicant.skills && application.applicant.skills.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-900 mb-2">Habilidades:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {application.applicant.skills.map((skill, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-md"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
                       </div>
-                    )}
-
-                    {application.applicant.experience && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-900 mb-2">Experiencia:</h4>
-                        <p className="text-gray-700 text-sm whitespace-pre-line">
-                          {application.applicant.experience}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="text-sm text-gray-500">
-                      Postulado el {format(new Date(application.created_at), 'dd MMMM yyyy', { locale: es })}
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {application.applicant.resume_url && (
-                      <a
-                        href={application.applicant.resume_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-                      >
-                        <Download className="h-4 w-4" />
-                        <span>Ver CV</span>
-                      </a>
-                    )}
+                  {/* Location */}
+                  <div className="col-span-2 flex items-center text-gray-500 text-sm">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {application.applicant.location || 'No especificada'}
+                  </div>
 
+                  {/* Date */}
+                  <div className="col-span-2 flex items-center text-gray-500 text-sm">
+                    <Clock className="h-4 w-4 mr-1" />
+                    {format(new Date(application.created_at), "d 'de' MMMM, yyyy", { locale: es })}
+                  </div>
+
+                  {/* Status */}
+                  <div className="col-span-2">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        application.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : application.status === 'accepted'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {application.status === 'pending'
+                        ? 'Pendiente'
+                        : application.status === 'accepted'
+                        ? 'Aceptada'
+                        : 'Rechazada'}
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-3 flex items-center space-x-3 mt-4 sm:mt-0">
                     {application.status === 'pending' && (
-                      <div className="flex space-x-2">
+                      <>
                         <button
                           onClick={() => updateApplicationStatus(application.id, 'accepted')}
-                          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                         >
-                          <Check className="h-4 w-4" />
-                          <span>Aceptar</span>
+                          <Check className="h-4 w-4 mr-1" />
+                          Aceptar
                         </button>
                         <button
                           onClick={() => updateApplicationStatus(application.id, 'rejected')}
-                          className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                         >
-                          <X className="h-4 w-4" />
-                          <span>Rechazar</span>
+                          <X className="h-4 w-4 mr-1" />
+                          Rechazar
                         </button>
-                      </div>
+                      </>
                     )}
+                    <button
+                      onClick={() => toggleApplicantDetails(application.id)}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Ver detalles
+                    </button>
                   </div>
-                </div>
 
-                {application.cover_letter && (
-                  <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                    <div className="flex items-center mb-2">
-                      <FileText className="h-4 w-4 text-gray-600 mr-2" />
-                      <h4 className="text-sm font-medium text-gray-900">
-                        Carta de Presentación:
-                      </h4>
+                  {/* Expanded details */}
+                  {expandedApplicationId === application.id && (
+                    <div className="col-span-12 mt-4 bg-gray-50 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {application.applicant.phone && (
+                          <div className="flex items-center text-gray-500">
+                            <Phone className="h-5 w-5 mr-2" />
+                            <a href={`tel:${application.applicant.phone}`} className="hover:text-blue-600">
+                              {application.applicant.phone}
+                            </a>
+                          </div>
+                        )}
+                        <div className="flex items-center text-gray-500">
+                          <Mail className="h-5 w-5 mr-2" />
+                          <a href={`mailto:${application.applicant.email}`} className="hover:text-blue-600">
+                            {application.applicant.email}
+                          </a>
+                        </div>
+                      </div>
+
+                      {application.applicant.skills && application.applicant.skills.length > 0 && (
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2">Habilidades</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {application.applicant.skills.map((skill, index) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {application.applicant.experience && (
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2">Experiencia</h4>
+                          <p className="text-sm text-gray-600">{application.applicant.experience}</p>
+                        </div>
+                      )}
+
+                      {application.cover_letter && (
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2">Carta de presentación</h4>
+                          <p className="text-sm text-gray-600">{application.cover_letter}</p>
+                        </div>
+                      )}
+
+                      {application.applicant.resume_url && (
+                        <div className="mt-4">
+                          <a
+                            href={application.applicant.resume_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Ver CV
+                          </a>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-700 whitespace-pre-line">
-                      {application.cover_letter}
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

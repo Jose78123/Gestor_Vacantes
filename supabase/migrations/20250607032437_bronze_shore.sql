@@ -40,10 +40,13 @@ CREATE TABLE IF NOT EXISTS jobs (
   title text NOT NULL,
   description text NOT NULL,
   requirements text NOT NULL,
+  benefits text,
   location text NOT NULL,
   salary numeric NOT NULL CHECK (salary > 0),
   currency text NOT NULL DEFAULT 'USD',
   job_type text NOT NULL CHECK (job_type IN ('full-time', 'part-time', 'contract', 'freelance')),
+  experience_level text NOT NULL CHECK (experience_level IN ('entry', 'mid', 'senior', 'lead')),
+  remote_work boolean DEFAULT false,
   is_active boolean DEFAULT true,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()

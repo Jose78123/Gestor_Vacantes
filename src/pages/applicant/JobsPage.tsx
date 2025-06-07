@@ -18,6 +18,9 @@ interface Job {
   job_type: string
   is_active: boolean
   created_at: string
+  benefits?: string
+  experience_level: 'entry' | 'mid' | 'senior' | 'lead'
+  remote_work: boolean
   employer: {
     company_name: string
   }
@@ -30,6 +33,8 @@ export function JobsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
   const [jobTypeFilter, setJobTypeFilter] = useState('')
+  const [experienceLevelFilter, setExperienceLevelFilter] = useState('')
+  const [remoteWorkFilter, setRemoteWorkFilter] = useState<boolean | ''>('')
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
@@ -77,7 +82,11 @@ export function JobsPage() {
     
     const matchesJobType = !jobTypeFilter || job.job_type === jobTypeFilter
 
-    return matchesSearch && matchesLocation && matchesJobType
+    const matchesExperience = !experienceLevelFilter || job.experience_level === experienceLevelFilter
+
+    const matchesRemote = remoteWorkFilter === '' || job.remote_work === remoteWorkFilter
+
+    return matchesSearch && matchesLocation && matchesJobType && matchesExperience && matchesRemote
   })
 
   const getJobTypeLabel = (type: string) => {
@@ -89,6 +98,7 @@ export function JobsPage() {
     }
     return types[type] || type
   }
+
 
   if (loading) {
     return (
@@ -105,141 +115,157 @@ export function JobsPage() {
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Empleos Disponibles
-        </h1>
-        <p className="text-gray-600">
-          {filteredJobs.length} empleo{filteredJobs.length !== 1 ? 's' : ''} encontrado{filteredJobs.length !== 1 ? 's' : ''}
-        </p>
-      </div>
-
-      {/* Filtros y Búsqueda */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <div className="flex flex-col space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar empleos, empresas o palabras clave..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+        {/* Search bar */}
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <div className="flex-1">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar empleos por título, descripción o empresa..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-            >
-              <Filter className="h-4 w-4" />
-              <span>Filtros</span>
-            </button>
           </div>
-
-          {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ubicación
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ciudad, país..."
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo de Empleo
-                </label>
-                <select
-                  value={jobTypeFilter}
-                  onChange={(e) => setJobTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Todos los tipos</option>
-                  <option value="full-time">Tiempo Completo</option>
-                  <option value="part-time">Medio Tiempo</option>
-                  <option value="contract">Contrato</option>
-                  <option value="freelance">Freelance</option>
-                </select>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center justify-center px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+          >
+            <Filter className="h-5 w-5 mr-2" />
+            Filtros
+          </button>
         </div>
+
+        {/* Filters */}
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ubicación
+              </label>
+              <input
+                type="text"
+                placeholder="Filtrar por ubicación"
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tipo de empleo
+              </label>
+              <select
+                value={jobTypeFilter}
+                onChange={(e) => setJobTypeFilter(e.target.value)}
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="full-time">Tiempo Completo</option>
+                <option value="part-time">Medio Tiempo</option>
+                <option value="contract">Contrato</option>
+                <option value="freelance">Freelance</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nivel de experiencia
+              </label>
+              <select
+                value={experienceLevelFilter}
+                onChange={(e) => setExperienceLevelFilter(e.target.value)}
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="entry">Principiante</option>
+                <option value="mid">Intermedio</option>
+                <option value="senior">Senior</option>
+                <option value="lead">Líder</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Trabajo remoto
+              </label>
+              <select
+                value={String(remoteWorkFilter)}
+                onChange={(e) => setRemoteWorkFilter(e.target.value === '' ? '' : e.target.value === 'true')}
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
-      {filteredJobs.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No hay empleos disponibles</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {searchTerm || locationFilter || jobTypeFilter
-              ? 'Prueba ajustando tus filtros de búsqueda.'
-              : 'Vuelve más tarde para ver nuevas oportunidades.'}
-          </p>
-        </div>
-      )}
-      {filteredJobs.length > 0 && (
-        <div className="space-y-6">
-          {filteredJobs.map((job) => (
-            <div
+      {/* Job listings */}
+      <div className="space-y-6">
+        {filteredJobs.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">No se encontraron empleos que coincidan con los filtros seleccionados.</p>
+          </div>
+        ) : (
+          filteredJobs.map((job) => (
+            <Link
               key={job.id}
-              className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
+              to={`/jobs/${job.id}`}
+              className="block bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow"
             >
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      {job.title}
-                    </h3>
-                    <p className="text-gray-600 font-medium mb-2">
-                      {job.employer.company_name}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-3">
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        {job.location}
-                      </div>
-                      <div className="flex items-center">
-                        <Briefcase className="h-4 w-4 mr-1" />
-                        {getJobTypeLabel(job.job_type)}
-                      </div>
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        {format(new Date(job.created_at), 'dd MMMM yyyy', { locale: es })}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="mb-2">
-                      <CurrencyConverter
-                        amount={job.salary}
-                        baseCurrency={job.currency}
-                        className="text-right"
-                      />
-                    </div>
-                    <Link
-                      to={`/jobs/${job.id}`}
-                      className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Ver Detalles
-                    </Link>
-                  </div>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">{job.title}</h3>
+                  <p className="text-gray-600 mt-1">{job.employer.company_name}</p>
                 </div>
-                
-                <p className="text-gray-600 line-clamp-3">
-                  {job.description}
-                </p>
+                <div className="text-right">
+                  <CurrencyConverter amount={job.salary} baseCurrency={job.currency} />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <div className="flex items-center text-gray-500">
+                  <MapPin className="h-5 w-5 mr-1" />
+                  <span>{job.location}</span>
+                  {job.remote_work && <span className="ml-1">(Remoto)</span>}
+                </div>
+                <div className="flex items-center text-gray-500">
+                  <Briefcase className="h-5 w-5 mr-1" />
+                  <span>{getJobTypeLabel(job.job_type)}</span>
+                </div>
+                <div className="flex items-center text-gray-500">
+                  <Clock className="h-5 w-5 mr-1" />
+                  <span>{format(new Date(job.created_at), "d 'de' MMMM, yyyy", { locale: es })}</span>
+                </div>
+                {job.experience_level && (
+                  <div className="text-gray-500">
+                    <span className="px-2 py-1 bg-gray-100 rounded-full text-sm">
+                      {job.experience_level === 'entry' && 'Principiante'}
+                      {job.experience_level === 'mid' && 'Intermedio'}
+                      {job.experience_level === 'senior' && 'Senior'}
+                      {job.experience_level === 'lead' && 'Líder'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {job.benefits && (
+                <div className="mt-4">
+                  <p className="text-gray-600 text-sm">
+                    <span className="font-medium">Beneficios:</span> {job.benefits}
+                  </p>
+                </div>
+              )}
+            </Link>
+          ))
+        )}
+      </div>
     </div>
   )
 }

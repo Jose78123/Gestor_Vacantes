@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { currencyService, SUPPORTED_CURRENCIES } from '../lib/currency'
 import { ChevronDown } from 'lucide-react'
 

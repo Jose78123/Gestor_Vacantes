@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -6,19 +6,24 @@ import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { SUPPORTED_CURRENCIES } from '../../lib/currency'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, MapPin, Clock, Building2, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const jobSchema = z.object({
   title: z.string().min(5, 'El título debe tener al menos 5 caracteres'),
   description: z.string().min(50, 'La descripción debe tener al menos 50 caracteres'),
   requirements: z.string().min(20, 'Los requisitos deben tener al menos 20 caracteres'),
+  benefits: z.string().optional(),
   location: z.string().min(3, 'La ubicación es requerida'),
-  salary: z.number().min(1, 'El salario debe ser mayor a 0'),
+  salary: z.coerce.number().min(1, 'El salario debe ser mayor a 0'),
   currency: z.string().min(1, 'Selecciona una moneda'),
   job_type: z.enum(['full-time', 'part-time', 'contract', 'freelance'], {
     required_error: 'Selecciona el tipo de empleo',
   }),
+  experience_level: z.enum(['entry', 'mid', 'senior', 'lead'], {
+    required_error: 'Selecciona el nivel de experiencia',
+  }),
+  remote_work: z.boolean().default(false),
 })
 
 type JobFormData = z.infer<typeof jobSchema>
@@ -37,6 +42,8 @@ export function CreateJobPage() {
     defaultValues: {
       currency: 'USD',
       job_type: 'full-time',
+      experience_level: 'mid',
+      remote_work: false,
     },
   })
 
@@ -49,13 +56,7 @@ export function CreateJobPage() {
         .from('jobs')
         .insert({
           employer_id: user.id,
-          title: data.title,
-          description: data.description,
-          requirements: data.requirements,
-          location: data.location,
-          salary: data.salary,
-          currency: data.currency,
-          job_type: data.job_type,
+          ...data,
           is_active: true,
         })
 
@@ -111,12 +112,15 @@ export function CreateJobPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Ubicación *
               </label>
-              <input
-                {...register('location')}
-                type="text"
-                placeholder="ej. Madrid, España"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+              <div className="relative">
+                <MapPin className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <input
+                  {...register('location')}
+                  type="text"
+                  placeholder="ej. Madrid, España"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               {errors.location && (
                 <p className="mt-1 text-sm text-red-600">{errors.location.message}</p>
               )}
@@ -126,15 +130,18 @@ export function CreateJobPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Tipo de Empleo *
               </label>
-              <select
-                {...register('job_type')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="full-time">Tiempo Completo</option>
-                <option value="part-time">Medio Tiempo</option>
-                <option value="contract">Contrato</option>
-                <option value="freelance">Freelance</option>
-              </select>
+              <div className="relative">
+                <Clock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <select
+                  {...register('job_type')}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="full-time">Tiempo Completo</option>
+                  <option value="part-time">Medio Tiempo</option>
+                  <option value="contract">Contrato</option>
+                  <option value="freelance">Freelance</option>
+                </select>
+              </div>
               {errors.job_type && (
                 <p className="mt-1 text-sm text-red-600">{errors.job_type.message}</p>
               )}
@@ -146,14 +153,17 @@ export function CreateJobPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Salario *
               </label>
-              <input
-                {...register('salary', { valueAsNumber: true })}
-                type="number"
-                min="1"
-                step="1"
-                placeholder="50000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+              <div className="relative">
+                <CreditCard className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <input
+                  {...register('salary')}
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="50000"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               {errors.salary && (
                 <p className="mt-1 text-sm text-red-600">{errors.salary.message}</p>
               )}
@@ -186,7 +196,7 @@ export function CreateJobPage() {
             <textarea
               {...register('description')}
               rows={6}
-              placeholder="Describe las responsabilidades, el ambiente de trabajo, beneficios, etc."
+              placeholder="Describe las responsabilidades, el ambiente de trabajo, objetivos del puesto, etc."
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
             {errors.description && (
@@ -207,6 +217,55 @@ export function CreateJobPage() {
             {errors.requirements && (
               <p className="mt-1 text-sm text-red-600">{errors.requirements.message}</p>
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Beneficios (Opcional)
+            </label>
+            <textarea
+              {...register('benefits')}
+              rows={4}
+              placeholder="Lista los beneficios que ofrece el puesto: seguro médico, bonos, horario flexible, etc."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nivel de Experiencia *
+              </label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <select
+                  {...register('experience_level')}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="entry">Principiante</option>
+                  <option value="mid">Intermedio</option>
+                  <option value="senior">Senior</option>
+                  <option value="lead">Líder</option>
+                </select>
+              </div>
+              {errors.experience_level && (
+                <p className="mt-1 text-sm text-red-600">{errors.experience_level.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Trabajo Remoto
+              </label>
+              <div className="flex items-center">
+                <input
+                  {...register('remote_work')}
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-600">Permitir trabajo remoto</span>
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-4">

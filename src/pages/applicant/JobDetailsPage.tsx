@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -22,6 +22,9 @@ interface Job {
   job_type: string
   is_active: boolean
   created_at: string
+  benefits?: string
+  experience_level: 'entry' | 'mid' | 'senior' | 'lead'
+  remote_work: boolean
   employer: {
     company_name: string
     company_description?: string
@@ -93,49 +96,73 @@ export function JobDetailsPage() {
     }
   }
 
-  const checkApplicationStatus = async () => {
-    if (!user || !id) return
-
-    try {
-      const { data, error } = await supabase
-        .from('applications')
-        .select('id')
-        .eq('job_id', id)
-        .eq('applicant_id', user.id)
-        .single()
-
-      if (data) {
-        setHasApplied(true)
-      }
-    } catch (error) {
-      // No hay aplicación existente
-      setHasApplied(false)
-    }
-  }
-
   const onSubmit = async (data: ApplicationFormData) => {
-    if (!user || !id) return
+    if (!user || !profile || !job) return
 
     setApplying(true)
     try {
       const { error } = await supabase
         .from('applications')
         .insert({
-          job_id: id,
+          job_id: job.id,
           applicant_id: user.id,
-          cover_letter: data.cover_letter || null,
-          status: 'pending',
+          cover_letter: data.cover_letter,
+          status: 'pending'
         })
 
       if (error) throw error
 
+      toast.success('Aplicación enviada exitosamente')
       setHasApplied(true)
-      toast.success('¡Postulación enviada exitosamente!')
     } catch (error: any) {
-      toast.error(error.message || 'Error al enviar postulación')
+      console.error('Error submitting application:', error)
+      toast.error('Error al enviar la aplicación')
     } finally {
       setApplying(false)
     }
+  }
+
+  const checkApplicationStatus = async () => {
+    if (!user || !id) return
+
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select()
+        .eq('job_id', id)
+        .eq('applicant_id', user.id)
+        .maybeSingle()
+
+      if (error) throw error
+
+      setHasApplied(!!data)
+    } catch (error: any) {
+      console.error('Error checking application status:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-32 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!job) return null
+
+  const getExperienceLevelLabel = (level: string) => {
+    const levels: { [key: string]: string } = {
+      'entry': 'Principiante',
+      'mid': 'Intermedio',
+      'senior': 'Senior',
+      'lead': 'Líder'
+    }
+    return levels[level] || level
   }
 
   const getJobTypeLabel = (type: string) => {
@@ -148,216 +175,138 @@ export function JobDetailsPage() {
     return types[type] || type
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="h-12 bg-gray-200 rounded w-3/4 mb-6"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded"></div>
-            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-            <div className="h-4 bg-gray-200 rounded w-4/6"></div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!job) {
-    return (
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Empleo no encontrado</h2>
-          <p className="text-gray-600 mt-2">El empleo que buscas no existe o ha sido removido.</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Verificar si el usuario puede postularse
-  const canApply = profile?.user_type === 'applicant' && !hasApplied && profile?.resume_url
-
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <button
         onClick={() => navigate('/jobs')}
-        className="flex items-center text-blue-600 hover:text-blue-800 mb-6 transition-colors"
+        className="flex items-center text-gray-600 hover:text-gray-900 mb-6"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
+        <ArrowLeft className="h-5 w-5 mr-2" />
         Volver a empleos
       </button>
 
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {/* Header */}
-        <div className="px-8 py-6 border-b border-gray-200">
+        <div className="p-6">
           <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900 mb-3">
-                {job.title}
-              </h1>
-              <div className="flex items-center mb-4">
-                <Building2 className="h-5 w-5 text-gray-400 mr-2" />
-                <span className="text-xl text-gray-700 font-medium">
-                  {job.employer.company_name}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-6 text-gray-600">
-                <div className="flex items-center">
-                  <MapPin className="h-4 w-4 mr-2" />
-                  {job.location}
-                </div>
-                <div className="flex items-center">
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  {getJobTypeLabel(job.job_type)}
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 mr-2" />
-                  Publicado el {format(new Date(job.created_at), 'dd MMMM yyyy', { locale: es })}
-                </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
+              <div className="mt-2 flex items-center text-gray-600">
+                <Building2 className="h-5 w-5 mr-2" />
+                {job.employer.company_name}
               </div>
             </div>
             <div className="text-right">
-              <CurrencyConverter
-                amount={job.salary}
+              <CurrencyConverter 
+                amount={job.salary} 
                 baseCurrency={job.currency}
-                className="mb-4"
+                className="text-2xl font-semibold text-green-600" 
               />
-              {hasApplied && (
-                <div className="px-4 py-2 bg-green-100 text-green-800 rounded-md text-sm font-medium">
-                  Ya postulaste a este empleo
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="px-8 py-6 space-y-8">
-          {/* Descripción */}
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Descripción del Puesto
-            </h2>
-            <div className="prose prose-gray max-w-none">
-              <p className="text-gray-700 whitespace-pre-line leading-relaxed">
-                {job.description}
-              </p>
+              <p className="text-sm text-gray-500 mt-1">Salario Base</p>
             </div>
           </div>
 
-          {/* Requisitos */}
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Requisitos
-            </h2>
-            <div className="prose prose-gray max-w-none">
-              <p className="text-gray-700 whitespace-pre-line leading-relaxed">
-                {job.requirements}
-              </p>
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center text-gray-600">
+              <MapPin className="h-5 w-5 mr-2" />
+              <span>
+                {job.location}
+                {job.remote_work && <span className="ml-1">(Trabajo Remoto)</span>}
+              </span>
+            </div>
+            <div className="flex items-center text-gray-600">
+              <Briefcase className="h-5 w-5 mr-2" />
+              <span>{getJobTypeLabel(job.job_type)}</span>
+            </div>
+            <div className="flex items-center text-gray-600">
+              <Clock className="h-5 w-5 mr-2" />
+              <span>Publicado el {format(new Date(job.created_at), "d 'de' MMMM, yyyy", { locale: es })}</span>
+            </div>
+            <div className="flex items-center text-gray-600">
+              <FileText className="h-5 w-5 mr-2" />
+              <span>Nivel: {getExperienceLevelLabel(job.experience_level)}</span>
             </div>
           </div>
 
-          {/* Información de la empresa */}
+          {job.benefits && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Beneficios</h3>
+              <p className="text-gray-600">{job.benefits}</p>
+            </div>
+          )}
+
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Descripción del puesto</h3>
+            <div className="prose max-w-none text-gray-600">
+              {job.description.split('\n').map((paragraph, index) => (
+                <p key={index} className="mb-4">{paragraph}</p>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Requisitos</h3>
+            <div className="prose max-w-none text-gray-600">
+              {job.requirements.split('\n').map((requirement, index) => (
+                <p key={index} className="mb-4">{requirement}</p>
+              ))}
+            </div>
+          </div>
+
           {job.employer.company_description && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Sobre la Empresa
-              </h2>
-              <p className="text-gray-700 leading-relaxed">
-                {job.employer.company_description}
-              </p>
-            </div>
-          )}
-
-          {/* Formulario de postulación */}
-          {profile?.user_type === 'applicant' && (
-            <div className="border-t border-gray-200 pt-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Postularse a este Empleo
-              </h2>
-
-              {!profile.resume_url ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                  <div className="flex">
-                    <FileText className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
-                    <div>
-                      <h3 className="text-sm font-medium text-yellow-800">
-                        Currículum requerido
-                      </h3>
-                      <p className="text-sm text-yellow-700 mt-1">
-                        Necesitas subir tu currículum antes de postularte.{' '}
-                        <button
-                          onClick={() => navigate('/profile')}
-                          className="font-medium underline hover:text-yellow-600"
-                        >
-                          Ir a mi perfil
-                        </button>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : hasApplied ? (
-                <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <div className="h-5 w-5 bg-green-400 rounded-full flex items-center justify-center">
-                        <div className="h-2 w-2 bg-white rounded-full"></div>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-green-800">
-                        Postulación enviada
-                      </h3>
-                      <p className="text-sm text-green-700 mt-1">
-                        Ya enviaste tu postulación para este empleo. 
-                        Puedes revisar el estado en tu{' '}
-                        <button
-                          onClick={() => navigate('/applications')}
-                          className="font-medium underline hover:text-green-600"
-                        >
-                          historial de postulaciones
-                        </button>
-                        .
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Carta de Presentación (Opcional)
-                    </label>
-                    <textarea
-                      {...register('cover_letter')}
-                      rows={6}
-                      placeholder="Escribe una carta de presentación personalizada para este empleo..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    {errors.cover_letter && (
-                      <p className="mt-1 text-sm text-red-600">{errors.cover_letter.message}</p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      Tu currículum será enviado automáticamente con esta postulación.
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={applying}
-                      className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Send className="h-4 w-4" />
-                      <span>{applying ? 'Enviando...' : 'Enviar Postulación'}</span>
-                    </button>
-                  </div>
-                </form>
-              )}
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Sobre la empresa</h3>
+              <p className="text-gray-600">{job.employer.company_description}</p>
             </div>
           )}
         </div>
+
+        {user && profile?.user_type === 'applicant' && (
+          <div className="border-t border-gray-200 p-6 bg-gray-50">
+            {hasApplied ? (
+              <div className="text-center">
+                <p className="text-gray-600">Ya has aplicado a esta vacante</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div>
+                  <label htmlFor="cover_letter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Carta de presentación (opcional)
+                  </label>
+                  <textarea
+                    id="cover_letter"
+                    rows={4}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="Cuéntanos por qué eres el candidato ideal para este puesto..."
+                    {...register('cover_letter')}
+                  />
+                  {errors.cover_letter && (
+                    <p className="mt-1 text-sm text-red-600">{errors.cover_letter.message}</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={applying}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    {applying ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                        Aplicando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Aplicar ahora
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
