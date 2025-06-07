@@ -1,18 +1,14 @@
 [build]
-  command = "npm run build"
+  command = "npm install && npm run build"
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "18"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# Variables de producción
-[context.production]
-  command = "npm run build"
 
 [context.production.environment]
   NODE_ENV = "production"
