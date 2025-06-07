@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   supabase,
   AuthUser,
@@ -59,15 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const navigate = useNavigate()
 
   const clearError = () => setError(null)
 
-  // Función para cargar el perfil del usuario con mejor manejo de errores
   const loadUserProfile = async (userId: string) => {
     try {
-      setLoading(true)
-      clearError()
-      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -83,22 +81,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       setProfile(data)
+
+      // Redirigir basado en el tipo de usuario
+      if (data.user_type === 'employer') {
+        navigate('/dashboard', { replace: true })
+      } else {
+        navigate('/jobs', { replace: true })
+      }
     } catch (error: any) {
       console.error('Error al cargar el perfil:', error)
       setError(error.message || 'Error al cargar el perfil del usuario')
-      // Si hay un error al cargar el perfil, no deberíamos mantener una sesión inválida
       if (error.status === 401 || error.status === 403) {
         await supabaseSignOut()
         setUser(null)
         setProfile(null)
         setIsAuthenticated(false)
+        navigate('/login', { replace: true })
       }
     } finally {
       setLoading(false)
     }
   }
 
-  // Efecto para verificar la sesión inicial
   useEffect(() => {
     const initialSession = async () => {
       try {
@@ -115,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error: any) {
         console.error('Error al verificar la sesión:', error)
         setError(error.message || 'Error al verificar la sesión')
-        // Si hay un error de sesión, limpiamos todo
         setUser(null)
         setProfile(null)
         setIsAuthenticated(false)
@@ -126,7 +129,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initialSession()
 
-    // Suscribirse a cambios de autenticación
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         try {
@@ -139,10 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await loadUserProfile(currentUser.id)
           } else {
             setProfile(null)
+            navigate('/login', { replace: true })
           }
         } catch (error: any) {
           console.error('Error en el cambio de estado de autenticación:', error)
           setError(error.message || 'Error en la autenticación')
+          navigate('/login', { replace: true })
         }
       }
     )
@@ -150,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       authListener?.subscription.unsubscribe()
     }
-  }, [])
+  }, [navigate])
 
   const value = {
     user,
@@ -183,7 +187,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setLoading(true)
         clearError()
-        await signInWithEmail(email, password)
+        const { data: { user } } = await signInWithEmail(email, password)
+        if (user) {
+          await loadUserProfile(user.id)
+        }
       } catch (error: any) {
         console.error('Error en el inicio de sesión:', error)
         setError(error.message || 'Error al iniciar sesión')
@@ -198,7 +205,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearError()
         await supabaseSignOut()
         setProfile(null)
+        setUser(null)
         setIsAuthenticated(false)
+        navigate('/login', { replace: true })
       } catch (error: any) {
         console.error('Error al cerrar sesión:', error)
         setError(error.message || 'Error al cerrar sesión')
@@ -230,9 +239,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearError
   }
 
+  // Mostrar un indicador de carga mientras se verifica la sesión inicial
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   )
 }
