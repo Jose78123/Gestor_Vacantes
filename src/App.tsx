@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { EmailConfirmationPage } from './pages/auth/EmailConfirmationPage'
 
 // Applicant Pages
 import { JobsPage } from './pages/applicant/JobsPage'
@@ -32,6 +33,7 @@ function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/confirm-email" element={<EmailConfirmationPage />} />
 
               {/* Protected Routes */}
               <Route
