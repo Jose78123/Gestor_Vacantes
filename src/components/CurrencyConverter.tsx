@@ -36,8 +36,6 @@ export function CurrencyConverter({ amount, baseCurrency, className = '' }: Curr
     }
   }
 
-  const selectedCurrencyData = SUPPORTED_CURRENCIES.find(c => c.code === selectedCurrency)
-
   return (
     <div className={`relative ${className}`}>
       <div className="flex items-center space-x-2">

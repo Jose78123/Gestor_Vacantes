@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Briefcase, User, LogOut, Home, FileText, Building2 } from 'lucide-react'

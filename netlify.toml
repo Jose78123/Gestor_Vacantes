@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && npm run typecheck && npm run build"
+  command = "npm run build"
   publish = "dist"
 
 [build.environment]
@@ -10,12 +10,3 @@
   to = "/index.html"
   status = 200
 
-[context.production.environment]
-  NODE_ENV = "production"
-
-# Variables de desarrollo
-[context.branch-deploy]
-  command = "npm run build"
-
-[context.branch-deploy.environment]
-  NODE_ENV = "development"
