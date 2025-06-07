@@ -1,3 +1,14 @@
+// Crea un perfil de usuario en la tabla profiles
+export const createUserProfile = async (
+  userId: string,
+  email: string,
+  userData: { [key: string]: any }
+) => {
+  const { error } = await supabase
+    .from('profiles')
+    .insert([{ id: userId, email, ...userData }])
+  if (error) throw error
+}
 import { createClient, AuthResponse, User } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL

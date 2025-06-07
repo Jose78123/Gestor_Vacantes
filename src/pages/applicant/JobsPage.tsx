@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
 import { CurrencyConverter } from '../../components/CurrencyConverter'
 import { MapPin, Clock, Briefcase, Search, Filter } from 'lucide-react'
 import { format } from 'date-fns'
@@ -25,7 +24,7 @@ interface Job {
 }
 
 export function JobsPage() {
-  const { profile } = useAuth()
+  // const { profile } = useAuth()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -174,7 +173,7 @@ export function JobsPage() {
         </div>
       </div>
 
-      {filteredJobs.length === 0 ? (
+      {filteredJobs.length === 0 && !loading && (
         <div className="text-center py-12">
           <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No hay empleos disponibles</h3>
@@ -184,7 +183,8 @@ export function JobsPage() {
               : 'Vuelve más tarde para ver nuevas oportunidades.'}
           </p>
         </div>
-      ) : (
+      )}
+      {filteredJobs.length > 0 && (
         <div className="space-y-6">
           {filteredJobs.map((job) => (
             <div

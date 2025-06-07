@@ -126,7 +126,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp: async (email: string, password: string, userData: Partial<Profile>) => {
       const { data: { user } } = await signUpWithEmail(email, password)
       if (user) {
-        await updateUserProfile(user.id, userData)
+        // Intenta crear el perfil, ignora error si ya existe
+        try {
+          await import('../lib/supabase').then(m => m.createUserProfile(user.id, email, userData))
+        } catch (e: any) {
+          if (!e.message?.includes('duplicate key')) throw e
+        }
         await loadUserProfile(user.id)
       }
     },
